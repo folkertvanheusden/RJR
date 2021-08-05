@@ -48,7 +48,7 @@ signal.signal(signal.SIGTERM, signal_handler)
 
 def start_file():
     tm = time.localtime()
-    name = 'recording_%04d-%02d-%02d_%02d-%02d-%02d.mid' % (tm.tm_year, tm.tm_mon, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec)
+    name = f'recording_{tm.tm_year}-{tm.tm_mon:02d}-{tm.tm_mday:02d}_{tm.tm_hour:02d}-{tm.tm_min:02d}-{tm.tm_sec:02d}.mid'
 
     MyMIDI = MIDIFile(numTracks = 16)
 
@@ -77,8 +77,7 @@ while True:
     # end file after 30 minutes of silence
     if state and now - state['latest_msg'] >= inactivity:
         end_file(state['file'])
-        print('File %s ended' % state['file'][1])
-        state = None
+        print(f"File {state['file'][1]} ended")
 
     for descriptor, event in fds:
         data, address = fd.recvfrom(16)
@@ -87,7 +86,7 @@ while True:
             state = dict()
             state['started_at'] = now
             state['file'] = start_file()
-            print('Started recording to %s' % state['file'][1])
+            print(f"Started recording to {state['file'][1]}")
             state['playing'] = dict()
 
         cmd = data[0] & 0xf0
@@ -120,7 +119,7 @@ while True:
 
                 velocity = state['playing'][ch_str][note_str]['velocity']
 
-                print('Played %d (velocity %d) at %f for %d ticks' % (note, velocity, t, duration))
+                print(f'Played {note} (velocity {velocity}) at {t:.3f} for {duration:.3f} ticks')
                 state['file'][0].addNote(ch, ch, note, t, duration, velocity)
 
             if velocity > 0:
