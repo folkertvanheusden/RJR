@@ -80,7 +80,17 @@ def handler(q, address):
     state = None
 
     while True:
-        item = q.get()
+        # end file after 30 minutes of silence
+        if state and time.time() - state['latest_msg'] >= inactivity:
+            end_file(state['file'])
+            print(f"{a} File {state['file'][1]} ended")
+            break
+
+        try:
+            item = q.get(timeout=0.5)
+
+        except queue.Empty:
+            continue
 
         if not item:
             end_file(state['file'])
@@ -88,12 +98,6 @@ def handler(q, address):
 
         data = item[0]
         now = item[1]
-
-        # end file after 30 minutes of silence
-        if state and now - state['latest_msg'] >= inactivity:
-            end_file(state['file'])
-            print(f"{a} File {state['file'][1]} ended")
-            break
 
         if state == None:
             state = dict()
