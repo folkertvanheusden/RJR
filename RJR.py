@@ -2,11 +2,13 @@
 
 # (C) 2021 by folkert@vanheusden.com
 
+import queue
 import select
 import signal
 import socket
 import struct
 import sys
+import threading
 import time
 from midiutil import MIDIFile
 
@@ -33,13 +35,13 @@ group = socket.inet_aton(multicast_group)
 mreq = struct.pack('4sL', group, socket.INADDR_ANY)
 fd.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
 
-def signal_handler(sig, frame):
-    if state:
-        print('Terminating program with data...')
-        end_file(state['file'])
+thrds = dict()
 
-    else:
-        print('Terminating program...')
+def signal_handler(sig, frame):
+    print('Terminating program...')
+
+    for t in thrds:
+        thrds[t]['q'].put(None)
 
     sys.exit(0)
 
@@ -70,23 +72,34 @@ pollerObject.register(fd, select.POLLIN)
 def t_to_ticks(t):
     return t * (bpm / 60.0)
 
-while True:
-    fds = pollerObject.poll(1000)
-    now = time.time()
+def handler(q, address):
+    a = f'{address[0]}:{address[1]}'
 
-    # end file after 30 minutes of silence
-    if state and now - state['latest_msg'] >= inactivity:
-        end_file(state['file'])
-        print(f"File {state['file'][1]} ended")
+    print(f'Thread for {a} started')
 
-    for descriptor, event in fds:
-        data, address = fd.recvfrom(16)
+    state = None
+
+    while True:
+        item = q.get()
+
+        if not item:
+            end_file(state['file'])
+            break
+
+        data = item[0]
+        now = item[1]
+
+        # end file after 30 minutes of silence
+        if state and now - state['latest_msg'] >= inactivity:
+            end_file(state['file'])
+            print(f"{a} File {state['file'][1]} ended")
+            break
 
         if state == None:
             state = dict()
             state['started_at'] = now
             state['file'] = start_file(address)
-            print(f"Started recording to {state['file'][1]}")
+            print(f"{a} Started recording to {state['file'][1]}")
             state['playing'] = dict()
 
         cmd = data[0] & 0xf0
@@ -119,7 +132,7 @@ while True:
 
                 velocity = state['playing'][ch_str][note_str]['velocity']
 
-                print(f'Played {note} (velocity {velocity}) at {t:.3f} for {duration:.3f} ticks')
+                print(f'{a} Played {note} (velocity {velocity}) at {t:.3f} for {duration:.3f} ticks')
                 state['file'][0].addNote(ch, ch, note, t, duration, velocity)
 
             if velocity > 0:
@@ -145,3 +158,26 @@ while True:
             state['file'][0].addProgramChange(ch, ch, t, program)
 
         state['latest_msg'] = now
+
+    print(f'Thread for {address[0]}:{address[1]} terminating')
+
+while True:
+    fds = pollerObject.poll(1000)
+    now = time.time()
+
+    for descriptor, event in fds:
+        data, address = fd.recvfrom(16)
+
+        if not address in thrds:
+            thrds[address] = dict()
+            thrds[address]['q'] = queue.Queue()
+            thrds[address]['th'] = threading.Thread(target=handler, args=(thrds[address]['q'], address,))
+            thrds[address]['th'].start()
+
+        thrds[address]['q'].put((data, now))
+
+    for t in thrds:
+        thrds[t]['th'].join(timeout=0.000001)
+
+        if not thrds[t]['th'].is_alive():
+            del thrds[t]['th']
