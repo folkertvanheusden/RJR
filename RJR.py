@@ -176,8 +176,13 @@ while True:
 
         thrds[address]['q'].put((data, now))
 
+    del_queue = []
+
     for t in thrds:
         thrds[t]['th'].join(timeout=0.000001)
 
         if not thrds[t]['th'].is_alive():
-            del thrds[t]
+            del_queue.append(t)
+
+    for d in del_queue:
+        del thrds[d]
