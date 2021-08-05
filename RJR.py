@@ -76,7 +76,7 @@ def t_to_ticks(t):
 def handler(q, address):
     a = f'{address[0]}:{address[1]}'
 
-    print(f'Thread for {a} started')
+    print(f'{time.ctime()}] Thread for {a} started')
 
     state = None
 
@@ -84,7 +84,7 @@ def handler(q, address):
         # end file after 30 minutes of silence
         if state and time.time() - state['latest_msg'] >= inactivity:
             end_file(state['file'])
-            print(f"{a} File {state['file'][1]} ended")
+            print(f"{time.ctime()}] {a} File {state['file'][1]} ended")
             break
 
         try:
@@ -104,7 +104,7 @@ def handler(q, address):
             state = dict()
             state['started_at'] = now
             state['file'] = start_file(address)
-            print(f"{a} Started recording to {state['file'][1]}")
+            print(f"{time.ctime()}] {a} Started recording to {state['file'][1]}")
             state['playing'] = dict()
 
         cmd = data[0] & 0xf0
@@ -137,7 +137,7 @@ def handler(q, address):
 
                 velocity = state['playing'][ch_str][note_str]['velocity']
 
-                print(f'{a} Played {note} (velocity {velocity}) at {t:.3f} for {duration:.3f} ticks')
+                print(f'{time.ctime()}] {a} Played {note} (velocity {velocity}) at {t:.3f} for {duration:.3f} ticks')
                 state['file'][0].addNote(0, ch, note, t, duration, velocity)
 
             if velocity > 0:
@@ -156,6 +156,8 @@ def handler(q, address):
             cc = data[1]
             parameter = data[2]
 
+            print(f'{time.ctime()}] {a} Channel {ch} controller {cc} change to {parameter}')
+
             since_start = now - state['started_at']
             t = t_to_ticks(since_start)
 
@@ -167,6 +169,8 @@ def handler(q, address):
 
             program = data[1]
             state['file'][0].addProgramChange(0, ch, t, program)
+
+            print(f'{time.ctime()}] {a} Channel {ch} program change to {program}')
 
         elif cmd == 0xe0:  # pitch wheel
             since_start = now - state['started_at']
@@ -180,7 +184,7 @@ def handler(q, address):
 
         state['latest_msg'] = now
 
-    print(f'Thread for {address[0]}:{address[1]} terminating')
+    print(f'{time.ctime()}] Thread for {address[0]}:{address[1]} terminating')
 
 while True:
     fds = pollerObject.poll(1000)
