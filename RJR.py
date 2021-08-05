@@ -119,8 +119,8 @@ def handler(q, address):
             velocity = data[2]
 
         if cmd in (0x80, 0x90):  # note on/off
-            ch_str = '{ch}'
-            note_str = '{note}'
+            ch_str = f'{ch}'
+            note_str = f'{note}'
 
             if ch_str in state['playing'] and note_str in state['playing'][ch_str]:
                 # emit
