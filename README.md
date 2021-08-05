@@ -5,8 +5,8 @@ RJR
 
 installation
 ------------
-This program requires a pip module:
-    pip install MIDIUtil
+This program requires the mido module:
+    apt install python3-mido
 
 
 usage

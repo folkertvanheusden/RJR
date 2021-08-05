@@ -10,7 +10,7 @@ import struct
 import sys
 import threading
 import time
-from midiutil import MIDIFile
+from mido import bpm2tempo, Message, MetaMessage, MidiFile, MidiTrack, second2tick
 
 multicast_group = '225.0.0.37'
 multicast_port = 21928
@@ -22,7 +22,9 @@ inactivity = 1 * 60  # in seconds
 
 # this is a maximum. if you go faster, then increase
 # this number
-bpm = 480
+bpm = 240
+
+ppqn = 64
 
 fd = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
@@ -52,26 +54,26 @@ def start_file(address):
     tm = time.localtime()
     name = f'recording_{address[0]}-{address[1]}_{tm.tm_year}-{tm.tm_mon:02d}-{tm.tm_mday:02d}_{tm.tm_hour:02d}-{tm.tm_min:02d}-{tm.tm_sec:02d}.mid'
 
-    MyMIDI = MIDIFile(numTracks = 2, deinterleave = False, adjust_origin=True)
+    track = MidiTrack()
 
-    MyMIDI.addTrackName(0, 0., 'Track 1')
-    MyMIDI.addTempo(1, 0, bpm)
+    track.append(MetaMessage('set_tempo', tempo=bpm2tempo(bpm)))
 
-    MyMIDI.addCopyright(1, 0, 'Produced by RJR, (C) 2021 by folkert@vanheusden.com')
-
-    return (MyMIDI, name)
+    return (track, name)
 
 def end_file(pars):
-    with open(pars[1], 'wb') as binfile:
-        pars[0].writeFile(binfile)
+    mid = MidiFile(ticks_per_beat=ppqn)
+
+    mid.tracks.append(pars[0])
+
+    mid.save(pars[1])
+
+def t_to_tick(ts, p_ts):
+    return int(second2tick(ts - p_ts, ppqn, bpm2tempo(bpm)))
 
 state = None
 
 pollerObject = select.poll()
 pollerObject.register(fd, select.POLLIN)
-
-def t_to_ticks(t):
-    return t * (bpm / 60.0)
 
 def handler(q, address):
     a = f'{address[0]}:{address[1]}'
@@ -104,7 +106,7 @@ def handler(q, address):
 
         if state == None:
             state = dict()
-            state['started_at'] = now
+            state['latest_msg'] = state['started_at'] = now
             state['file'] = start_file(address)
             print(f"{time.ctime()}] {a} Started recording to {state['file'][1]}")
             state['playing'] = dict()
@@ -112,53 +114,15 @@ def handler(q, address):
         cmd = data[0] & 0xf0
         ch = data[0] & 0x0f
 
-        note = velocity = None
-
-        if len(data) >= 2:
+        if cmd in (0x80, 0x90):  # note on/off
             note = data[1]
-
-        if len(data) >= 3:
             velocity = data[2]
 
-        if cmd in (0x80, 0x90):  # note on/off
-            ch_str = f'{ch}'
-            note_str = f'{note}'
+            t = t_to_tick(now, state['latest_msg'])
 
-            existed = True
+            state['file'][0].append(Message('note_on' if cmd == 0x90 else 'note_off', channel=ch, note=note, velocity=velocity, time=t))
 
-            if not ch_str in state['playing'] or not note_str in state['playing'][ch_str]:
-                if not ch_str in state['playing']:
-                    state['playing'][ch_str] = dict()
-
-                state['playing'][ch_str][note_str] = dict()
-
-                existed = False
-
-            state['playing'][ch_str][note_str]['t'] = now
-
-            old_velocity = state['playing'][ch_str][note_str]['velocity'] if 'velocity' in state['playing'][ch_str][note_str] else 0
-            state['playing'][ch_str][note_str]['velocity'] = velocity
-
-            if velocity == 0:
-                # emit
-                since_start = state['playing'][ch_str][note_str]['t'] - state['started_at']
-                t = t_to_ticks(since_start)
-
-                if ch == 9:  # percussion
-                    duration = t_to_ticks(1)
-
-                else:
-                    since_now = now - state['playing'][ch_str][note_str]['t']
-                    duration = t_to_ticks(since_now)
-
-                if existed:
-                    state['file'][0].addNote(0, ch, note, t, duration, old_velocity)
-                    print(f'{time.ctime()}] {a} Played {note} (velocity {old_velocity}) at {t:.3f} for {duration:.3f} ticks')
-
-                else:
-                    print(f'{time.ctime()}] {a} Spurious note-off')
-
-                del state['playing'][ch_str][note_str]
+            print(f'{time.ctime()}] {a} Played {note} (velocity {velocity}) at {t}')
 
         elif cmd == 0xb0:  # controller change
             cc = data[1]
@@ -166,29 +130,27 @@ def handler(q, address):
 
             print(f'{time.ctime()}] {a} Channel {ch} controller {cc} change to {parameter}')
 
-            since_start = now - state['started_at']
-            t = t_to_ticks(since_start)
+            t = t_to_tick(now, state['latest_msg'])
 
-            state['file'][0].addControllerEvent(0, ch, t, cc, parameter)
+            state['file'][0].append(Message('control_change', channel=ch, control=cc, value=parameter, time=t))
 
         elif cmd == 0xc0:  # program change
-            since_start = now - state['started_at']
-            t = t_to_ticks(since_start)
-
             program = data[1]
-            state['file'][0].addProgramChange(0, ch, t, program)
 
             print(f'{time.ctime()}] {a} Channel {ch} program change to {program}')
 
+            t = t_to_tick(now, state['latest_msg'])
+
+            state['file'][0].append(Message('program_change', channel=ch, program=program, time=t))
+
         elif cmd == 0xe0:  # pitch wheel
-            since_start = now - state['started_at']
-            t = t_to_ticks(since_start)
+            t = t_to_tick(now, state['latest_msg'])
 
             value = (data[1] << 7) | data[2]
             if value >= 0x4000:
                 value = -(0x8000 - value)
 
-            state['file'][0].addPitchWheelEvent(0, ch, t, value)
+            state['file'][0].append(Message('pitchwheel', channel=ch, pitch=value, time=t))
 
         state['latest_msg'] = now
 
