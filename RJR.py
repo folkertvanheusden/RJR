@@ -52,12 +52,12 @@ def start_file(address):
     tm = time.localtime()
     name = f'recording_{address[0]}-{address[1]}_{tm.tm_year}-{tm.tm_mon:02d}-{tm.tm_mday:02d}_{tm.tm_hour:02d}-{tm.tm_min:02d}-{tm.tm_sec:02d}.mid'
 
-    MyMIDI = MIDIFile(numTracks = 1)
+    MyMIDI = MIDIFile(numTracks = 2, deinterleave = False, adjust_origin=True)
 
     MyMIDI.addTrackName(0, 0., 'Track 1')
-    MyMIDI.addTempo(0, 0, bpm)
+    MyMIDI.addTempo(1, 0, bpm)
 
-    MyMIDI.addCopyright(0, 0, 'Produced by RJR, (C) 2021 by folkert@vanheusden.com')
+    MyMIDI.addCopyright(1, 0, 'Produced by RJR, (C) 2021 by folkert@vanheusden.com')
 
     return (MyMIDI, name)
 
@@ -84,6 +84,7 @@ def handler(q, address):
         # end file after 30 minutes of silence
         if state and time.time() - state['latest_msg'] >= inactivity:
             end_file(state['file'])
+            state = None
             print(f"{time.ctime()}] {a} File {state['file'][1]} ended")
             break
 
@@ -95,6 +96,7 @@ def handler(q, address):
 
         if not item:
             end_file(state['file'])
+            state = None
             break
 
         data = item[0]
@@ -122,9 +124,23 @@ def handler(q, address):
             ch_str = f'{ch}'
             note_str = f'{note}'
 
-            if ch_str in state['playing'] and note_str in state['playing'][ch_str]:
+            existed = True
+
+            if not ch_str in state['playing'] or not note_str in state['playing'][ch_str]:
+                if not ch_str in state['playing']:
+                    state['playing'][ch_str] = dict()
+
+                state['playing'][ch_str][note_str] = dict()
+
+                existed = False
+
+            state['playing'][ch_str][note_str]['t'] = now
+
+            old_velocity = state['playing'][ch_str][note_str]['velocity'] if 'velocity' in state['playing'][ch_str][note_str] else 0
+            state['playing'][ch_str][note_str]['velocity'] = velocity
+
+            if velocity == 0:
                 # emit
-                # using channel as track number
                 since_start = state['playing'][ch_str][note_str]['t'] - state['started_at']
                 t = t_to_ticks(since_start)
 
@@ -135,21 +151,13 @@ def handler(q, address):
                     since_now = now - state['playing'][ch_str][note_str]['t']
                     duration = t_to_ticks(since_now)
 
-                velocity = state['playing'][ch_str][note_str]['velocity']
+                if existed:
+                    state['file'][0].addNote(0, ch, note, t, duration, old_velocity)
+                    print(f'{time.ctime()}] {a} Played {note} (velocity {old_velocity}) at {t:.3f} for {duration:.3f} ticks')
 
-                print(f'{time.ctime()}] {a} Played {note} (velocity {velocity}) at {t:.3f} for {duration:.3f} ticks')
-                state['file'][0].addNote(0, ch, note, t, duration, velocity)
+                else:
+                    print(f'{time.ctime()}] {a} Spurious note-off')
 
-            if velocity > 0:
-                if not ch_str in state['playing']:
-                    state['playing'][ch_str] = dict()
-
-                state['playing'][ch_str][note_str] = dict()
-                state['playing'][ch_str][note_str]['cmd'] = cmd
-                state['playing'][ch_str][note_str]['t'] = now
-                state['playing'][ch_str][note_str]['velocity'] = velocity
-
-            elif ch_str in state['playing'] and note_str in state['playing'][ch_str]:
                 del state['playing'][ch_str][note_str]
 
         elif cmd == 0xb0:  # controller change
