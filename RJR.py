@@ -22,7 +22,7 @@ inactivity = 1 * 60  # in seconds
 
 # this is a maximum. if you go faster, then increase
 # this number
-bpm = 240
+bpm = 960
 
 ppqn = 64
 
