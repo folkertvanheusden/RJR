@@ -46,9 +46,9 @@ def signal_handler(sig, frame):
 signal.signal(signal.SIGINT, signal_handler)
 signal.signal(signal.SIGTERM, signal_handler)
 
-def start_file():
+def start_file(address):
     tm = time.localtime()
-    name = f'recording_{tm.tm_year}-{tm.tm_mon:02d}-{tm.tm_mday:02d}_{tm.tm_hour:02d}-{tm.tm_min:02d}-{tm.tm_sec:02d}.mid'
+    name = f'recording_{address[0]}-{address[1]}_{tm.tm_year}-{tm.tm_mon:02d}-{tm.tm_mday:02d}_{tm.tm_hour:02d}-{tm.tm_min:02d}-{tm.tm_sec:02d}.mid'
 
     MyMIDI = MIDIFile(numTracks = 16)
 
@@ -85,7 +85,7 @@ while True:
         if state == None:
             state = dict()
             state['started_at'] = now
-            state['file'] = start_file()
+            state['file'] = start_file(address)
             print(f"Started recording to {state['file'][1]}")
             state['playing'] = dict()
 
