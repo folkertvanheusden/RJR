@@ -56,6 +56,8 @@ def start_file(address):
 
     track = MidiTrack()
 
+    track.append(MetaMessage('copyright', text='RJR (C) 2021 by folkert@vanheusden.com'))
+
     track.append(MetaMessage('set_tempo', tempo=bpm2tempo(bpm)))
 
     return (track, name)
