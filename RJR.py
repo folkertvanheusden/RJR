@@ -54,9 +54,8 @@ def start_file(address):
 
     MyMIDI = MIDIFile(numTracks = 16)
 
-    for track in range(0, 16):
-        MyMIDI.addTrackName(track, 0, 'Channel {track + 1}')
-        MyMIDI.addTempo(track, 0, bpm)
+    MyMIDI.addTrackName(0, 0., 'Track 1')
+    MyMIDI.addTempo(0, 0, bpm)
 
     MyMIDI.addCopyright(0, 0, 'Produced by RJR, (C) 2021 by folkert@vanheusden.com')
 
@@ -139,7 +138,7 @@ def handler(q, address):
                 velocity = state['playing'][ch_str][note_str]['velocity']
 
                 print(f'{a} Played {note} (velocity {velocity}) at {t:.3f} for {duration:.3f} ticks')
-                state['file'][0].addNote(ch, ch, note, t, duration, velocity)
+                state['file'][0].addNote(0, ch, note, t, duration, velocity)
 
             if velocity > 0:
                 if not ch_str in state['playing']:
@@ -160,14 +159,14 @@ def handler(q, address):
             since_start = now - state['started_at']
             t = t_to_ticks(since_start)
 
-            state['file'][0].addControllerEvent(ch, ch, t, cc, parameter)
+            state['file'][0].addControllerEvent(0, ch, t, cc, parameter)
 
         elif cmd == 0xc0:  # program change
             since_start = now - state['started_at']
             t = t_to_ticks(since_start)
 
             program = data[1]
-            state['file'][0].addProgramChange(ch, ch, t, program)
+            state['file'][0].addProgramChange(0, ch, t, program)
 
         elif cmd == 0xe0:  # pitch wheel
             since_start = now - state['started_at']
@@ -177,7 +176,7 @@ def handler(q, address):
             if value >= 0x4000:
                 value = -(0x8000 - value)
 
-            state['file'][0].addPitchWheelEvent(ch, ch, t, value)
+            state['file'][0].addPitchWheelEvent(0, ch, t, value)
 
         state['latest_msg'] = now
 
