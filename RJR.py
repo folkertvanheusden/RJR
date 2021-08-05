@@ -180,4 +180,4 @@ while True:
         thrds[t]['th'].join(timeout=0.000001)
 
         if not thrds[t]['th'].is_alive():
-            del thrds[t]['th']
+            del thrds[t]
