@@ -53,7 +53,7 @@ def start_file():
     MyMIDI = MIDIFile(numTracks = 16)
 
     for track in range(0, 16):
-        MyMIDI.addTrackName(track, 0, 'Channel %d' % (track + 1))
+        MyMIDI.addTrackName(track, 0, 'Channel {track + 1}')
         MyMIDI.addTempo(track, 0, bpm)
 
     return (MyMIDI, name)
@@ -101,8 +101,8 @@ while True:
             velocity = data[2]
 
         if cmd in (0x80, 0x90):  # note on/off
-            ch_str = '%d' % ch
-            note_str = '%d' % note
+            ch_str = '{ch}'
+            note_str = '{note}'
 
             if ch_str in state['playing'] and note_str in state['playing'][ch_str]:
                 # emit
@@ -135,8 +135,8 @@ while True:
                 del state['playing'][ch_str][note_str]
 
         elif cmd == 0xc0:  # program change
-            ch_str = '%d' % ch
-            note_str = '%d' % note
+            ch_str = '{ch}'
+            note_str = '{note}'
 
             since_start = now - state['started_at']
             t = t_to_ticks(since_start)
