@@ -52,7 +52,7 @@ def start_file(address):
     tm = time.localtime()
     name = f'recording_{address[0]}-{address[1]}_{tm.tm_year}-{tm.tm_mon:02d}-{tm.tm_mday:02d}_{tm.tm_hour:02d}-{tm.tm_min:02d}-{tm.tm_sec:02d}.mid'
 
-    MyMIDI = MIDIFile(numTracks = 16)
+    MyMIDI = MIDIFile(numTracks = 1)
 
     MyMIDI.addTrackName(0, 0., 'Track 1')
     MyMIDI.addTempo(0, 0, bpm)
