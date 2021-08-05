@@ -58,6 +58,8 @@ def start_file(address):
         MyMIDI.addTrackName(track, 0, 'Channel {track + 1}')
         MyMIDI.addTempo(track, 0, bpm)
 
+    MyMIDI.addCopyright(0, 0, 'Produced by RJR, (C) 2021 by folkert@vanheusden.com')
+
     return (MyMIDI, name)
 
 def end_file(pars):
@@ -151,15 +153,31 @@ def handler(q, address):
             elif ch_str in state['playing'] and note_str in state['playing'][ch_str]:
                 del state['playing'][ch_str][note_str]
 
-        elif cmd == 0xc0:  # program change
-            ch_str = '{ch}'
-            note_str = '{note}'
+        elif cmd == 0xb0:  # controller change
+            cc = data[1]
+            parameter = data[2]
 
+            since_start = now - state['started_at']
+            t = t_to_ticks(since_start)
+
+            state['file'][0].addControllerEvent(ch, ch, t, cc, parameter)
+
+        elif cmd == 0xc0:  # program change
             since_start = now - state['started_at']
             t = t_to_ticks(since_start)
 
             program = data[1]
             state['file'][0].addProgramChange(ch, ch, t, program)
+
+        elif cmd == 0xe0:  # pitch wheel
+            since_start = now - state['started_at']
+            t = t_to_ticks(since_start)
+
+            value = (data[1] << 7) | data[2]
+            if value >= 0x4000:
+                value = -(0x8000 - value)
+
+            state['file'][0].addPitchWheelEvent(ch, ch, t, value)
 
         state['latest_msg'] = now
 
