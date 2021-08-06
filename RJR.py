@@ -88,8 +88,8 @@ def handler(q, address):
         # end file after 30 minutes of silence
         if state and time.time() - state['latest_msg'] >= inactivity:
             end_file(state['file'])
-            state = None
             print(f"{time.ctime()}] {a} File {state['file'][1]} ended")
+            state = None
             break
 
         try:
