@@ -2,6 +2,7 @@
 
 # (C) 2021 by folkert@vanheusden.com
 
+import getopt
 import queue
 import select
 import signal
@@ -12,8 +13,8 @@ import threading
 import time
 from mido import bpm2tempo, Message, MetaMessage, MidiFile, MidiTrack, second2tick
 
-is_multicast = True
-bind_group = '225.0.0.37'
+is_multicast = False
+bind_addr = '127.0.0.1'
 bind_port = 21928
 
 # after this many seconds of nothing played, the
@@ -27,15 +28,61 @@ bpm = 960
 
 ppqn = 64
 
+# minimum size of output
+min_size = 0
+
+def usage():
+    print('-a x   bind to listen address x')
+    print('-p x   port to bind to')
+    print('-m     address/port is a multicast group')
+    print('-i x   inactivity timer (in seconds, optional)')
+    print('-b x   BPM (optional)')
+    print('-q x   PPQN (optional)')
+    print('-n x   minimum size, in notes (optional)')
+
+try:
+    opts, args = getopt.getopt(sys.argv[1:], 'a:p:mi:b:q:n:')
+
+except getopt.GetoptError as err:
+    print(err)
+    usage()
+    sys.exit(1)
+
+for o, a in opts:
+    if o in ("-a"):
+        bind_addr = a
+
+    elif o in ("-p"):
+        bind_port = int(a)
+
+    elif o in ("-m"):
+        is_multicast = True
+
+    elif o in ("-i"):
+        inactivity = float(a)
+
+    elif o in ("-b"):
+        bpm = a
+
+    elif o in ("-q"):
+        ppqn = a
+
+    elif o in ("-n"):
+        min_size = int(a)
+
+    else:
+        usage()
+        assert False, "unhandled option"
+
 fd = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
 fd.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
-fd.bind((bind_group, bind_port))
+fd.bind((bind_addr, bind_port))
 
 # join multicast group
 if is_multicast:
-    group = socket.inet_aton(bind_group)
+    group = socket.inet_aton(bind_addr)
     mreq = struct.pack('4sL', group, socket.INADDR_ANY)
     fd.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
 
@@ -67,9 +114,12 @@ def start_file(address):
 def end_file(pars):
     mid = MidiFile(ticks_per_beat=ppqn)
 
-    mid.tracks.append(pars[0])
+    if len(pars[0]) >= min_size:
+        mid.tracks.append(pars[0])
+        mid.save(pars[1])
 
-    mid.save(pars[1])
+    else:
+        print(f'Not storing file: not long enough (is {len(pars[0])} MIDI messages in length currently)')
 
 def t_to_tick(ts, p_ts):
     return int(second2tick(ts - p_ts, ppqn, bpm2tempo(bpm)))
@@ -156,7 +206,8 @@ def handler(q, address):
 
             state['file'][0].append(Message('pitchwheel', channel=ch, pitch=value, time=t))
 
-        state['latest_msg'] = now
+        if cmd < 0xf0:
+            state['latest_msg'] = now
 
     print(f'{time.ctime()}] Thread for {address[0]}:{address[1]} terminating')
 
