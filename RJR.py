@@ -12,8 +12,9 @@ import threading
 import time
 from mido import bpm2tempo, Message, MetaMessage, MidiFile, MidiTrack, second2tick
 
-multicast_group = '225.0.0.37'
-multicast_port = 21928
+is_multicast = True
+bind_group = '225.0.0.37'
+bind_port = 21928
 
 # after this many seconds of nothing played, the
 # midi-file will be closed (after which a new one
@@ -30,12 +31,13 @@ fd = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
 fd.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
-fd.bind((multicast_group, multicast_port))
+fd.bind((bind_group, bind_port))
 
 # join multicast group
-group = socket.inet_aton(multicast_group)
-mreq = struct.pack('4sL', group, socket.INADDR_ANY)
-fd.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
+if is_multicast:
+    group = socket.inet_aton(bind_group)
+    mreq = struct.pack('4sL', group, socket.INADDR_ANY)
+    fd.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
 
 thrds = dict()
 
