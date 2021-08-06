@@ -11,14 +11,18 @@ This program requires the mido module:
 
 usage
 -----
-Just start it.
-
-If you need to configure the multicast address/port or if you play faster then 480bpm, change RJR.py.
+Run RJR.py with the '-h' switch to get a list of options.
 
 
 note
 ----
 If you miss data (notes, program changes, etc), check if your network drops multicast packets.
+Also consider using the unicast option (e.g. not using the -m switch).
+
+
+see also
+--------
+RJRalsa - same thing, but for (local) ALSA connections.
 
 
 (C) 2021 by folkert@vanheusden.com
