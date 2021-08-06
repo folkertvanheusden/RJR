@@ -137,7 +137,7 @@ def handler(q, address):
     state = None
 
     while True:
-        # end file after 30 minutes of silence
+        # end file after x seconds of silence
         if state and time.time() - state['latest_msg'] >= inactivity:
             end_file(state['file'])
             print(f"{time.ctime()}] {a} File {state['file'][1]} ended")
